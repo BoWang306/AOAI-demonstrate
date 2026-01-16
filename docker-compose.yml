@@ -1,3 +1,6 @@
+# Docker Compose 配置
+# 仅用于本地开发和测试，不用于 Dev Container
+
 version: '3.8'
 
 services:
@@ -12,18 +15,12 @@ services:
       - ..:/workspace:cached
       # 挂载 .env 文件（如果存在）
       - ../.env:/workspace/.env:ro
-      # 可选：挂载 Azure CLI 配置
-      # - ~/.azure:/home/vscode/.azure:ro
     
     ports:
       - "8501:8501"
     
     environment:
       - PYTHONUNBUFFERED=1
-      # 可选：从宿主机传递环境变量
-      # - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
-      # - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
-      # - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
     
     command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
     
@@ -38,7 +35,6 @@ services:
     # 自动重启
     restart: unless-stopped
     
-    # 网络配置
     networks:
       - azure-openai-network
 

@@ -1,10 +1,17 @@
 {
 	"name": "Azure OpenAI 模型测试门户",
 	
-	// 使用 Docker Compose
-	"dockerComposeFile": "docker-compose.yml",
-	"service": "app",
+	// 直接使用 Dockerfile
+	"build": {
+		"dockerfile": "Dockerfile",
+		"context": "..",
+		"args": {
+			"VARIANT": "3.11"
+		}
+	},
+	
 	"workspaceFolder": "/workspace",
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
 	
 	// 配置特定功能
 	"features": {
@@ -59,7 +66,7 @@
 	},
 
 	// 容器启动后自动运行
-	"postStartCommand": "echo '🚀 Azure OpenAI 测试门户已准备就绪！' && echo '💡 运行 streamlit run app.py 启动应用' && echo '📖 查看 .devcontainer/README.md 了解更多信息'",
+	"postStartCommand": "echo '🚀 Azure OpenAI 测试门户已准备就绪！' && echo '💡 运行 streamlit run app.py 启动应用' && echo '📖 查看 README.md 了解更多信息'",
 
 	// 容器用户
 	"remoteUser": "vscode",
@@ -67,5 +74,15 @@
 	// 环境变量
 	"remoteEnv": {
 		"PYTHONUNBUFFERED": "1"
-	}
+	},
+	
+	// 运行参数
+	"runArgs": [
+		"--name", "azure-openai-portal-dev"
+	],
+	
+	// 挂载 Azure CLI 配置（可选）
+	"mounts": [
+		"source=${localEnv:HOME}${localEnv:USERPROFILE}/.azure,target=/home/vscode/.azure,type=bind,consistency=cached"
+	]
 }

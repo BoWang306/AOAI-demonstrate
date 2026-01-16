@@ -63,16 +63,28 @@
    - Codespaces 会自动转发端口 8501
    - 点击弹出的通知访问应用
 
-## ⚙️ 配置说明
+## 🏗️ 配置说明
 
-### 端口转发
+### Dockerfile
 
-Dev Container 自动转发以下端口：
-- **8501**: Streamlit 应用主端口
+- **位置**: `.devcontainer/Dockerfile`
+- **基础镜像**: `mcr.microsoft.com/devcontainers/python:3.11`
+- **特性**: 
+  - 预安装系统工具
+  - 预安装 Python 依赖
+  - 健康检查配置
+  - 适用于开发和生产
 
-访问方式：
-- VS Code: 点击终端中的 URL
-- Codespaces: 自动弹出通知
+### devcontainer.json
+
+- **位置**: `.devcontainer/devcontainer.json`
+- **配置内容**:
+  - Dockerfile 构建配置
+  - VS Code 扩展和设置
+  - 端口转发
+  - 挂载点配置
+
+## ⚙️ 高级配置
 
 ### 环境变量
 
@@ -118,33 +130,23 @@ Dev Container 会自动挂载你的本地 Azure CLI 配置：
 }
 ```
 
-### 安装额外的系统包
-
-创建 `.devcontainer/Dockerfile`：
-```dockerfile
-FROM mcr.microsoft.com/devcontainers/python:3.11
-
-# 安装额外的系统包
-RUN apt-get update && apt-get install -y \
-    你的包名 \
-    && apt-get clean
-```
-
-然后修改 `devcontainer.json`：
-```json
-"build": {
-  "dockerfile": "Dockerfile"
-}
-```
-
 ### 修改 Python 版本
 
-在 `devcontainer.json` 中更改基础镜像：
-```json
-"image": "mcr.microsoft.com/devcontainers/python:3.10"
+在 `.devcontainer/Dockerfile` 中更改 ARG：
+```dockerfile
+ARG VARIANT="3.10"  # 或 3.9, 3.11, 3.12
+FROM mcr.microsoft.com/devcontainers/python:${VARIANT}
 ```
 
-支持的版本：3.8, 3.9, 3.10, 3.11, 3.12
+### 安装额外的系统包
+
+在 `.devcontainer/Dockerfile` 中添加：
+```dockerfile
+RUN apt-get update && apt-get install -y \
+    你的包名 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+```
 
 ## 📚 使用技巧
 
@@ -205,6 +207,9 @@ git push
 ```bash
 # 重建容器
 F1 → Dev Containers: Rebuild Container
+
+# 或清理并重建
+F1 → Dev Containers: Rebuild Container Without Cache
 ```
 
 ### 问题 2: 端口转发不工作
@@ -225,40 +230,67 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 问题 4: 环境变量未加载
+### 问题 4: 容器名称冲突
+
+**错误信息**: `The container name "/azure-openai-portal-dev" is already in use`
 
 **解决方案**:
 ```bash
-# 检查 .env 文件是否存在
-ls -la .env
+# 删除现有容器
+docker rm -f azure-openai-portal-dev
 
-# 手动加载
-source .env
+# 或在 devcontainer.json 中更改容器名称
+"runArgs": ["--name", "azure-openai-portal-dev-2"]
+```
 
-# 或在 Python 中验证
-python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(os.getenv('AZURE_OPENAI_API_KEY'))"
+## 🐳 Docker 相关
+
+### 查看容器信息
+
+```bash
+# 查看运行的容器
+docker ps
+
+# 查看容器日志
+docker logs azure-openai-portal-dev
+
+# 进入容器
+docker exec -it azure-openai-portal-dev bash
+```
+
+### 构建生产镜像
+
+参见根目录的 `DOCKER_REGISTRY.md` 文档：
+
+```bash
+# 使用自动化脚本
+./build-and-push.sh v1.1.0
+
+# 推送到容器注册表
+./build-and-push.sh v1.1.0 myregistry.azurecr.io
 ```
 
 ## 🔐 安全最佳实践
 
-1. **不要提交 .env 文件**
-   - 已在 .gitignore 中配置
-   - 使用 .env.example 作为模板
+### 保护敏感信息
 
-2. **使用环境变量**
-   - 避免在代码中硬编码敏感信息
-   - 使用 VS Code 的 Secret Storage
+1. ✅ 使用环境变量存储 API Key
+2. ✅ 不要将 `.env` 文件提交到版本控制
+3. ✅ 定期轮换 API Key
+4. ✅ 使用专用的开发环境密钥
 
-3. **定期更新容器**
-   ```bash
-   F1 → Dev Containers: Rebuild Container
-   ```
+### 输入验证
+
+1. ✅ 过滤敏感信息
+2. ✅ 限制输入长度
+3. ✅ 验证输入格式
 
 ## 📖 相关文档
 
 - [VS Code Dev Containers 文档](https://code.visualstudio.com/docs/devcontainers/containers)
 - [GitHub Codespaces 文档](https://docs.github.com/codespaces)
 - [Dev Container 规范](https://containers.dev/)
+- [Docker 镜像构建指南](../DOCKER_REGISTRY.md)
 
 ## 💡 开发工作流
 
@@ -271,7 +303,7 @@ python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(os.ge
    ```
 
 2. **等待容器启动**
-   - 首次启动需要下载镜像和安装依赖（约 2-5 分钟）
+   - 首次启动需要构建镜像（约 2-5 分钟）
    - 后续启动很快（约 10-30 秒）
 
 3. **配置 API**
@@ -316,5 +348,6 @@ python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(os.ge
 - 🔧 统一团队环境
 - 📦 自动化配置
 - 🌐 随处开发（本地、云端）
+- 🐳 易于打包和部署
 
 **祝开发愉快！**
