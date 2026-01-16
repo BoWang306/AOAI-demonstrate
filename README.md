@@ -56,13 +56,47 @@
 
 ## 🚀 快速开始
 
-### 方法一：使用启动脚本（推荐）
+### 方法一：Dev Container (推荐用于开发)
+
+最简单的方式是使用 VS Code Dev Container：
+
+```bash
+# 1. 在 VS Code 中打开项目
+code /path/to/webapp
+
+# 2. 点击提示 "Reopen in Container"
+# 或按 F1 → "Dev Containers: Reopen in Container"
+
+# 3. 等待容器构建完成，然后运行
+streamlit run app.py
+```
+
+详细说明请查看 [.devcontainer/README.md](.devcontainer/README.md)
+
+### 方法二：Docker Compose
+
+使用 Docker Compose 快速启动：
+
+```bash
+# 启动服务
+docker-compose -f .devcontainer/docker-compose.yml up -d
+
+# 查看日志
+docker-compose -f .devcontainer/docker-compose.yml logs -f
+
+# 访问应用
+# 打开浏览器: http://localhost:8501
+```
+
+详细说明请查看 [DOCKER.md](DOCKER.md)
+
+### 方法三：使用启动脚本
 
 ```bash
 ./start.sh
 ```
 
-### 方法二：直接运行
+### 方法四：直接运行
 
 ```bash
 # 1. 安装依赖
@@ -72,7 +106,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-### 方法三：使用配置助手
+### 方法五：使用配置助手
 
 ```bash
 # 先测试配置
@@ -190,45 +224,54 @@ AZURE_OPENAI_API_VERSION=2024-02-15-preview
 - 🔧 灵活的参数调整
 - 📱 响应式设计
 
-## 📁 项目文件
+## 📁 项目结构
 
-| 文件 | 说明 |
-|------|------|
-| `app.py` | 主应用程序 |
-| `config_helper.py` | API 配置助手 |
-| `demo.py` | 编程演示脚本 |
-| `start.sh` | 启动脚本 |
-| `requirements.txt` | Python 依赖 |
-| `test_cases_example.json` | 批量测试示例 |
-| `.env.example` | 环境变量模板 |
-| `README.md` | 项目说明（本文件）|
-| `GUIDE.md` | 详细使用指南 |
-| `QUICKREF.md` | 快速参考卡片 |
+```
+webapp/
+├── .devcontainer/              # Dev Container 配置
+│   ├── devcontainer.json       # VS Code Dev Container 配置
+│   ├── Dockerfile              # 开发环境 Docker 镜像
+│   ├── docker-compose.yml      # Docker Compose 配置
+│   └── README.md               # Dev Container 使用说明
+├── app.py                      # 主应用程序
+├── config_helper.py            # API 配置助手
+├── start.sh                    # 启动脚本
+├── requirements.txt            # Python 依赖
+├── test_cases_example.json     # 批量测试示例
+├── .env.example                # 环境变量模板
+├── .gitignore                  # Git 忽略配置
+├── README.md                   # 项目说明（本文件）
+├── GUIDE.md                    # 详细使用指南
+├── QUICKREF.md                 # 快速参考卡片
+└── DOCKER.md                   # Docker 部署指南
+```
 
 ## 🛠️ 技术栈
 
 - **Streamlit**: Web 应用框架
 - **OpenAI Python SDK**: Azure OpenAI API 客户端
-- **Python 3.8+**: 编程语言
+- **Python 3.11**: 编程语言
 - **Python-dotenv**: 环境变量管理
+- **Docker**: 容器化部署
+- **VS Code Dev Containers**: 开发环境
 
-## 🎓 额外工具
+## 🎓 额外工具和文档
 
-### 配置助手
+### 开发环境
+- **Dev Container**: VS Code 开发容器配置，详见 [.devcontainer/README.md](.devcontainer/README.md)
+- **Docker 部署**: 容器化部署指南，详见 [DOCKER.md](DOCKER.md)
+
+### 配置工具
 验证 Azure OpenAI API 配置是否正确：
 ```bash
 streamlit run config_helper.py
 ```
 
-### 演示脚本
-查看编程方式使用 Azure OpenAI API 的示例：
-```bash
-python demo.py
-```
-
 ### 文档资源
 - **GUIDE.md**: 详细使用指南，包含常见问题和最佳实践
 - **QUICKREF.md**: 快速参考卡片，包含常用命令和配置
+- **DOCKER.md**: Docker 和容器化部署完整指南
+- **.devcontainer/README.md**: Dev Container 使用说明
 - **test_cases_example.json**: 批量测试用例示例
 
 ## 📝 更新日志
