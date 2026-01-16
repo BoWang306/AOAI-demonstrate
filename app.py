@@ -45,30 +45,65 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 可用模型列表
+# 可用模型列表和API支持信息
+# 根据Azure OpenAI官方文档更新 (2025-01)
 AVAILABLE_MODELS = {
-    "GPT-4.1": {
-        "gpt-4.1-nano": "gpt-4.1-nano",
+    "GPT-4.1 系列": {
+        "models": {
+            "gpt-4.1": {"name": "gpt-4.1", "api": "Chat Completions", "desc": "标准版本"},
+            "gpt-4.1-nano": {"name": "gpt-4.1-nano", "api": "Chat Completions", "desc": "轻量快速版"},
+            "gpt-4.1-mini": {"name": "gpt-4.1-mini", "api": "Chat Completions", "desc": "迷你版本"},
+        }
     },
-    "GPT-5": {
-        "gpt-5": "gpt-5",
-        "gpt-5-nano": "gpt-5-nano",
-        "gpt-5-pro": "gpt-5-pro",
+    "GPT-5 系列": {
+        "models": {
+            "gpt-5": {"name": "gpt-5", "api": "Chat Completions", "desc": "标准版本 (需注册)"},
+            "gpt-5-mini": {"name": "gpt-5-mini", "api": "Chat Completions", "desc": "迷你版本"},
+            "gpt-5-nano": {"name": "gpt-5-nano", "api": "Chat Completions", "desc": "纳米版本"},
+            "gpt-5-chat": {"name": "gpt-5-chat", "api": "Chat Completions", "desc": "对话优化版"},
+            "gpt-5-pro": {"name": "gpt-5-pro", "api": "Responses API Only", "desc": "专业版 (需注册)"},
+        }
     },
-    "GPT-5.1": {
-        "gpt-5.1-chat": "gpt-5.1-chat",
+    "GPT-5.1 系列": {
+        "models": {
+            "gpt-5.1": {"name": "gpt-5.1", "api": "Chat Completions", "desc": "标准版本 (需注册)"},
+            "gpt-5.1-chat": {"name": "gpt-5.1-chat", "api": "Chat Completions", "desc": "对话版本 (Preview)"},
+        }
     },
-    "GPT-5.2": {
-        "gpt-5.2": "gpt-5.2",
-        "gpt-5.2-chat": "gpt-5.2-chat",
-        "gpt-5.2-chat-2": "gpt-5.2-chat",
-        "gpt-5.2-codex": "gpt-5.2-codex",
+    "GPT-5.2 系列": {
+        "models": {
+            "gpt-5.2": {"name": "gpt-5.2", "api": "Chat Completions", "desc": "标准版本 (需注册)"},
+            "gpt-5.2-chat": {"name": "gpt-5.2-chat", "api": "Chat Completions", "desc": "对话版本 (Preview)"},
+            "gpt-5.2-codex": {"name": "gpt-5.2-codex", "api": "Chat Completions", "desc": "代码优化版 (需注册)"},
+        }
     },
-    "GPT-Realtime": {
-        "gpt-realtime": "gpt-realtime",
+    "GPT-4o 系列": {
+        "models": {
+            "gpt-4o": {"name": "gpt-4o", "api": "Chat Completions", "desc": "GPT-4 Omni 标准版"},
+            "gpt-4o-mini": {"name": "gpt-4o-mini", "api": "Chat Completions", "desc": "GPT-4 Omni 迷你版"},
+        }
     },
-    "Grok": {
-        "grok-4-fast-non-reasoning": "grok-4-fast-non-reasoning",
+    "GPT-4 Turbo": {
+        "models": {
+            "gpt-4-turbo": {"name": "gpt-4", "api": "Chat Completions", "desc": "GPT-4 Turbo"},
+        }
+    },
+    "GPT-3.5 系列": {
+        "models": {
+            "gpt-35-turbo": {"name": "gpt-35-turbo", "api": "Chat Completions", "desc": "GPT-3.5 Turbo"},
+        }
+    },
+    "o 系列 (推理模型)": {
+        "models": {
+            "o1": {"name": "o1", "api": "Chat Completions", "desc": "推理模型"},
+            "o1-mini": {"name": "o1-mini", "api": "Chat Completions", "desc": "推理模型迷你版"},
+            "o3-mini": {"name": "o3-mini", "api": "Chat Completions", "desc": "推理模型 o3-mini"},
+        }
+    },
+    "Grok 系列": {
+        "models": {
+            "grok-4-fast-non-reasoning": {"name": "grok-4-fast-non-reasoning", "api": "Chat Completions", "desc": "快速推理版本"},
+        }
     }
 }
 
@@ -122,7 +157,52 @@ def call_chat_completion(client, model, messages, temperature, max_tokens, top_p
                 "total_tokens": response.usage.total_tokens
             }
     except Exception as e:
-        st.error(f"API 调用失败: {str(e)}")
+        error_msg = str(e)
+        
+        # 解析常见错误并提供友好提示
+        if "OperationNotSupported" in error_msg:
+            st.error(f"❌ **API 不支持错误**")
+            st.error(f"模型 `{model}` 不支持 Chat Completions API")
+            st.info("💡 **解决方案**:")
+            st.info("1. 检查该模型是否需要使用 Responses API")
+            st.info("2. 选择其他支持 Chat Completions API 的模型")
+            st.info("3. 参考文档: https://learn.microsoft.com/azure/ai-foundry/openai/")
+        elif "DeploymentNotFound" in error_msg:
+            st.error(f"❌ **部署未找到**")
+            st.error(f"模型 `{model}` 未在您的 Azure OpenAI 资源中部署")
+            st.info("💡 **解决方案**:")
+            st.info("1. 在 Azure OpenAI Studio 中部署该模型")
+            st.info("2. 确保使用的是部署名称而不是模型名称")
+            st.info("3. 检查部署是否在正确的区域")
+        elif "invalid_request_error" in error_msg:
+            st.error(f"❌ **请求参数错误**")
+            st.error(f"详细信息: {error_msg}")
+            st.info("💡 **解决方案**:")
+            st.info("1. 检查 Temperature 等参数是否在有效范围内")
+            st.info("2. 检查 Max Tokens 设置是否合理")
+            st.info("3. 某些推理模型不支持 temperature 参数")
+        elif "401" in error_msg or "Unauthorized" in error_msg:
+            st.error(f"❌ **认证失败**")
+            st.error("API Key 无效或已过期")
+            st.info("💡 **解决方案**:")
+            st.info("1. 检查 API Key 是否正确")
+            st.info("2. 确认 API Key 未过期")
+            st.info("3. 在 Azure Portal 中重新生成密钥")
+        elif "429" in error_msg or "RateLimitReached" in error_msg:
+            st.error(f"❌ **速率限制**")
+            st.error("请求频率过高或配额已用完")
+            st.info("💡 **解决方案**:")
+            st.info("1. 等待几秒后重试")
+            st.info("2. 检查 Azure 订阅配额")
+            st.info("3. 考虑升级配额或使用不同的区域")
+        else:
+            st.error(f"❌ **API 调用失败**")
+            st.error(f"错误详情: {error_msg}")
+            st.info("💡 **常见解决方案**:")
+            st.info("1. 检查网络连接")
+            st.info("2. 验证 API 配置是否正确")
+            st.info("3. 查看 Azure Portal 中的服务状态")
+        
         return None, None
 
 def main():
@@ -156,14 +236,33 @@ def main():
             options=list(AVAILABLE_MODELS.keys())
         )
         
+        model_options = AVAILABLE_MODELS[model_family]["models"]
         model_name = st.selectbox(
             "具体模型",
-            options=list(AVAILABLE_MODELS[model_family].keys())
+            options=list(model_options.keys()),
+            format_func=lambda x: f"{x} - {model_options[x]['desc']}"
         )
         
-        selected_model = AVAILABLE_MODELS[model_family][model_name]
+        selected_model_info = model_options[model_name]
+        selected_model = selected_model_info["name"]
+        api_type = selected_model_info["api"]
         
-        st.info(f"当前选择: **{selected_model}**")
+        st.info(f"**当前选择**: {selected_model}")
+        
+        # API 支持提示
+        if "Responses API Only" in api_type:
+            st.warning(f"⚠️ **注意**: {selected_model} 仅支持 Responses API，不支持 Chat Completions API")
+        elif "需注册" in selected_model_info["desc"]:
+            st.warning(f"⚠️ **注意**: {selected_model} 需要申请注册才能使用")
+        
+        if api_type == "Chat Completions":
+            st.success(f"✅ 支持 Chat Completions API")
+        
+        # 显示模型详情
+        with st.expander("📋 模型详细信息"):
+            st.write(f"- **模型名称**: {selected_model}")
+            st.write(f"- **API 类型**: {api_type}")
+            st.write(f"- **描述**: {selected_model_info['desc']}")
         
         st.divider()
         
@@ -453,14 +552,43 @@ def main():
     with tab4:
         st.header("📖 可用模型列表")
         
-        for family, models in AVAILABLE_MODELS.items():
+        st.info("💡 根据 Azure OpenAI 官方文档更新 (2025-01)")
+        
+        for family, family_data in AVAILABLE_MODELS.items():
             with st.expander(f"📦 {family}", expanded=True):
-                for name, model_id in models.items():
-                    col1, col2 = st.columns([1, 2])
+                models = family_data["models"]
+                for name, model_info in models.items():
+                    col1, col2, col3 = st.columns([2, 2, 3])
                     with col1:
                         st.markdown(f"**{name}**")
                     with col2:
-                        st.code(model_id)
+                        st.code(model_info["name"])
+                    with col3:
+                        # API 类型标签
+                        if model_info["api"] == "Chat Completions":
+                            st.success(f"✅ {model_info['api']}")
+                        else:
+                            st.warning(f"⚠️ {model_info['api']}")
+                        st.caption(model_info["desc"])
+        
+        st.divider()
+        
+        st.markdown("### ⚠️ 重要提示")
+        st.warning("""
+        **模型访问要求**:
+        - 🔒 标记为"需注册"的模型需要申请访问权限
+        - 📝 某些模型仅支持特定的 API（如 Responses API）
+        - 🌍 不同区域可用的模型可能不同
+        - 💰 不同模型有不同的定价
+        
+        **申请访问**:
+        - GPT-5 系列: https://aka.ms/oai/gpt5access
+        - GPT-Image 系列: https://aka.ms/oai/gptimage1access
+        
+        **文档参考**:
+        - Azure OpenAI 文档: https://learn.microsoft.com/azure/ai-foundry/openai/
+        - 模型列表: https://learn.microsoft.com/azure/ai-foundry/foundry-models/
+        """)
         
         st.divider()
         
@@ -468,35 +596,46 @@ def main():
         st.markdown("""
         #### 🎯 快速开始
         1. 在侧边栏配置 Azure OpenAI API 信息
-        2. 选择要测试的模型
-        3. 调整模型参数（Temperature、Max Tokens 等）
-        4. 选择测试模式开始使用
+        2. 选择要测试的模型（注意API支持类型）
+        3. 确保模型已在 Azure OpenAI Studio 中部署
+        4. 调整模型参数（Temperature、Max Tokens 等）
+        5. 选择测试模式开始使用
         
         #### 💬 聊天测试
         - 支持多轮对话
         - 保留对话历史
         - 实时交互测试
+        - 适用于支持 Chat Completions API 的模型
         
         #### 📝 单次调用
         - 快速测试单个请求
         - 查看详细响应和性能指标
         - 支持自定义 System Prompt
+        - 查看完整的 JSON 响应
         
         #### 📊 批量测试
         - 同时测试多个用例
         - 对比不同输入的输出
         - 导出测试结果
+        - 性能基准测试
         
         #### ⚙️ 参数说明
-        - **Temperature**: 控制输出随机性 (0-2)
+        - **Temperature**: 控制输出随机性 (0-2，某些推理模型不支持)
         - **Max Tokens**: 最大输出长度
         - **Top P**: 核采样参数 (0-1)
         - **Stream**: 启用流式输出
+        
+        #### ⚠️ 常见错误
+        - **OperationNotSupported**: 模型不支持该 API 类型
+        - **DeploymentNotFound**: 模型未部署或部署名称错误
+        - **Unauthorized**: API Key 无效或过期
+        - **RateLimitReached**: 速率限制或配额不足
         
         #### 🔐 安全提示
         - API Key 仅保存在当前会话
         - 不会上传到任何服务器
         - 建议使用环境变量配置敏感信息
+        - 定期轮换 API 密钥
         """)
 
 if __name__ == "__main__":
