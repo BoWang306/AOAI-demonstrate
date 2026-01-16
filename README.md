@@ -56,19 +56,35 @@
 
 ## 🚀 快速开始
 
-### 1. 安装依赖
+### 方法一：使用启动脚本（推荐）
 
 ```bash
-pip install -r requirements.txt
+./start.sh
 ```
 
-### 2. 运行应用
+### 方法二：直接运行
 
 ```bash
+# 1. 安装依赖
+pip install -r requirements.txt
+
+# 2. 运行应用
+streamlit run app.py
+```
+
+### 方法三：使用配置助手
+
+```bash
+# 先测试配置
+streamlit run config_helper.py
+
+# 配置验证通过后运行主应用
 streamlit run app.py
 ```
 
 ### 3. 配置 API
+
+**选项 A: 通过界面配置**
 
 在侧边栏输入：
 - **API Key**: 你的 Azure OpenAI API 密钥
@@ -76,6 +92,19 @@ streamlit run app.py
 - **API Version**: API 版本（默认：`2024-02-15-preview`）
 
 点击"保存配置"按钮保存设置。
+
+**选项 B: 使用环境变量**
+
+```bash
+# 1. 复制配置模板
+cp .env.example .env
+
+# 2. 编辑 .env 文件，填入你的配置
+nano .env
+
+# 3. 启动应用
+./start.sh
+```
 
 ## 📋 使用流程
 
@@ -161,11 +190,46 @@ AZURE_OPENAI_API_VERSION=2024-02-15-preview
 - 🔧 灵活的参数调整
 - 📱 响应式设计
 
+## 📁 项目文件
+
+| 文件 | 说明 |
+|------|------|
+| `app.py` | 主应用程序 |
+| `config_helper.py` | API 配置助手 |
+| `demo.py` | 编程演示脚本 |
+| `start.sh` | 启动脚本 |
+| `requirements.txt` | Python 依赖 |
+| `test_cases_example.json` | 批量测试示例 |
+| `.env.example` | 环境变量模板 |
+| `README.md` | 项目说明（本文件）|
+| `GUIDE.md` | 详细使用指南 |
+| `QUICKREF.md` | 快速参考卡片 |
+
 ## 🛠️ 技术栈
 
 - **Streamlit**: Web 应用框架
 - **OpenAI Python SDK**: Azure OpenAI API 客户端
 - **Python 3.8+**: 编程语言
+- **Python-dotenv**: 环境变量管理
+
+## 🎓 额外工具
+
+### 配置助手
+验证 Azure OpenAI API 配置是否正确：
+```bash
+streamlit run config_helper.py
+```
+
+### 演示脚本
+查看编程方式使用 Azure OpenAI API 的示例：
+```bash
+python demo.py
+```
+
+### 文档资源
+- **GUIDE.md**: 详细使用指南，包含常见问题和最佳实践
+- **QUICKREF.md**: 快速参考卡片，包含常用命令和配置
+- **test_cases_example.json**: 批量测试用例示例
 
 ## 📝 更新日志
 
