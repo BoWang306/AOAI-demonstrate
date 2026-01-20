@@ -4,25 +4,32 @@
 
 ## 🌟 功能特点
 
-### 1. 💬 聊天测试模式
+### 1. 🔧 模型配置管理 (新增)
+- 统一管理多个模型配置
+- 支持不同 endpoint 和 API key
+- 推理参数配置 (reasoning_effort)
+- 配置导入导出功能
+- 连接测试验证
+
+### 2. 💬 聊天测试模式
 - 多轮对话支持
 - 保留对话历史
 - 实时交互测试
 - 流式/非流式输出切换
 
-### 2. 📝 单次 API 调用
+### 3. 📝 单次 API 调用
 - 快速测试单个请求
 - 自定义 System Prompt 和 User Prompt
 - 查看详细响应 JSON
 - 实时性能指标展示（延迟、Token 使用量）
 
-### 3. 📊 批量测试工具
+### 4. 📊 批量测试工具
 - 支持多个测试用例同时运行
 - 手动输入或 JSON 文件上传
 - 测试结果对比分析
 - 汇总统计和结果导出
 
-### 4. 📖 模型信息展示
+### 5. 📖 模型信息展示
 - 完整的模型列表
 - 分类展示（GPT-4.1、GPT-5 系列等）
 - 使用指南和参数说明
@@ -118,16 +125,32 @@ streamlit run app.py
 
 ### 3. 配置 API
 
-**选项 A: 通过界面配置**
+**选项 A: 使用配置管理器 (推荐)**
 
-在侧边栏输入：
-- **API Key**: 你的 Azure OpenAI API 密钥
-- **API Base URL**: Azure OpenAI 端点 URL（例如：`https://your-resource.openai.azure.com/`）
-- **API Version**: API 版本（默认：`2024-02-15-preview`）
+在应用中导航到 **模型配置管理** 页面:
 
-点击"保存配置"按钮保存设置。
+1. 点击侧边栏的配置管理链接
+2. 添加新配置:
+   - 模型名称 (例如: gpt-5.2)
+   - Endpoint URL
+   - API Key
+   - 推理参数 (可选)
+3. 保存并测试配置
+4. 在主应用中选择 "从配置文件加载" 模式
 
-**选项 B: 使用环境变量**
+详细说明请查看 [CONFIG_GUIDE.md](CONFIG_GUIDE.md)
+
+**选项 B: 通过界面手动配置**
+
+在主应用的侧边栏:
+1. 选择 "手动输入" 模式
+2. 输入：
+   - **API Key**: 你的 Azure OpenAI API 密钥
+   - **API Base URL**: Azure OpenAI 端点 URL（例如：`https://your-resource.openai.azure.com/`）
+   - **API Version**: API 版本（默认：`2024-02-15-preview`）
+3. 点击"保存配置"按钮
+
+**选项 C: 使用环境变量**
 
 ```bash
 # 1. 复制配置模板

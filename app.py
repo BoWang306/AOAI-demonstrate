@@ -4,6 +4,7 @@ from openai import AzureOpenAI
 import json
 from datetime import datetime
 import time
+from pathlib import Path
 
 # 页面配置
 st.set_page_config(
@@ -107,6 +108,20 @@ AVAILABLE_MODELS = {
     }
 }
 
+# 配置文件路径
+CONFIG_FILE = Path(__file__).parent / "model_configs.json"
+
+def load_model_configs():
+    """从配置文件加载模型配置"""
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            st.sidebar.error(f"加载配置文件失败: {str(e)}")
+            return []
+    return []
+
 # 初始化 session state
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
@@ -116,6 +131,10 @@ if 'api_base' not in st.session_state:
     st.session_state.api_base = ""
 if 'api_version' not in st.session_state:
     st.session_state.api_version = "2024-02-15-preview"
+if 'use_config_file' not in st.session_state:
+    st.session_state.use_config_file = False
+if 'selected_config_id' not in st.session_state:
+    st.session_state.selected_config_id = None
 
 def initialize_client(api_key, api_base, api_version):
     """初始化 Azure OpenAI 客户端"""
@@ -130,19 +149,26 @@ def initialize_client(api_key, api_base, api_version):
         st.error(f"客户端初始化失败: {str(e)}")
         return None
 
-def call_chat_completion(client, model, messages, temperature, max_tokens, top_p, stream=False):
+def call_chat_completion(client, model, messages, temperature, max_tokens, top_p, stream=False, reasoning_effort=None):
     """调用聊天完成 API"""
     try:
         start_time = time.time()
         
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            top_p=top_p,
-            stream=stream
-        )
+        # 构建请求参数
+        request_params = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "top_p": top_p,
+            "stream": stream
+        }
+        
+        # 如果指定了推理参数且不为 none，则添加到请求中
+        if reasoning_effort and reasoning_effort != "none":
+            request_params["reasoning_effort"] = reasoning_effort
+        
+        response = client.chat.completions.create(**request_params)
         
         if stream:
             return response, None
@@ -213,56 +239,137 @@ def main():
     with st.sidebar:
         st.header("⚙️ 配置")
         
-        # API 配置
-        st.subheader("API 设置")
-        api_key = st.text_input("API Key", type="password", value=st.session_state.api_key)
-        api_base = st.text_input("API Base URL", value=st.session_state.api_base, 
-                                 placeholder="https://your-resource.openai.azure.com/")
-        api_version = st.text_input("API Version", value=st.session_state.api_version)
+        # 配置模式选择
+        st.subheader("📂 配置模式")
+        use_config_file = st.radio(
+            "选择配置方式",
+            options=[False, True],
+            format_func=lambda x: "📝 手动输入" if not x else "📁 从配置文件加载",
+            key="config_mode_radio"
+        )
+        st.session_state.use_config_file = use_config_file
         
-        if st.button("💾 保存配置"):
-            st.session_state.api_key = api_key
-            st.session_state.api_base = api_base
-            st.session_state.api_version = api_version
-            st.success("配置已保存！")
+        # 高级配置管理链接
+        st.info("💡 **提示**: 在 [模型配置管理](/1_🔧_模型配置管理) 页面管理配置文件")
         
         st.divider()
         
-        # 模型选择
-        st.subheader("🎯 模型选择")
-        
-        model_family = st.selectbox(
-            "模型系列",
-            options=list(AVAILABLE_MODELS.keys())
-        )
-        
-        model_options = AVAILABLE_MODELS[model_family]["models"]
-        model_name = st.selectbox(
-            "具体模型",
-            options=list(model_options.keys()),
-            format_func=lambda x: f"{x} - {model_options[x]['desc']}"
-        )
-        
-        selected_model_info = model_options[model_name]
-        selected_model = selected_model_info["name"]
-        api_type = selected_model_info["api"]
-        
-        st.info(f"**当前选择**: {selected_model}")
-        
-        # API 支持提示
-        if "Responses API Only" in api_type:
-            st.warning(f"⚠️ **注意**: {selected_model} 仅支持 Responses API，不支持 Chat Completions API")
-        elif "需注册" in selected_model_info["desc"]:
-            st.warning(f"⚠️ **注意**: {selected_model} 需要申请注册才能使用")
-        
-        if api_type == "Chat Completions":
-            st.success(f"✅ 支持 Chat Completions API")
-        
-        # 显示模型详情
-        with st.expander("📋 模型详细信息"):
-            st.write(f"- **模型名称**: {selected_model}")
-            st.write(f"- **API 类型**: {api_type}")
-            st.write(f"- **描述**: {selected_model_info['desc']}")
+        # 根据配置模式显示不同的UI
+        if use_config_file:
+            # 从配置文件加载
+            st.subheader("📁 配置文件")
+            model_configs = load_model_configs()
+            
+            if not model_configs:
+                st.warning("⚠️ 配置文件为空或不存在")
+                st.info("请先在 [模型配置管理](/1_🔧_模型配置管理) 页面添加配置")
+                selected_model = None
+                api_key = ""
+                api_base = ""
+                api_version = "2024-02-15-preview"
+                reasoning_enabled = False
+                reasoning_effort = "none"
+            else:
+                # 创建配置选择器
+                config_options = {
+                    f"{c['id']}": f"{c['model_name']} - {c.get('description', 'No description')}"
+                    for c in model_configs
+                }
+                
+                selected_config_key = st.selectbox(
+                    "选择配置",
+                    options=list(config_options.keys()),
+                    format_func=lambda x: config_options[x]
+                )
+                
+                # 获取选中的配置
+                selected_config = next(
+                    (c for c in model_configs if str(c['id']) == selected_config_key),
+                    None
+                )
+                
+                if selected_config:
+                    st.session_state.selected_config_id = selected_config['id']
+                    selected_model = selected_config['model_name']
+                    api_key = selected_config['api_key']
+                    api_base = selected_config['endpoint']
+                    api_version = selected_config.get('api_version', '2024-02-15-preview')
+                    reasoning_enabled = selected_config.get('reasoning_enabled', False)
+                    reasoning_effort = selected_config.get('reasoning_effort', 'none')
+                    
+                    # 显示配置信息
+                    with st.expander("📋 配置详情", expanded=True):
+                        st.write(f"**模型**: {selected_model}")
+                        st.write(f"**Endpoint**: {api_base}")
+                        st.write(f"**API Version**: {api_version}")
+                        if reasoning_enabled:
+                            st.write(f"**推理模式**: ✅ 启用 ({reasoning_effort})")
+                        else:
+                            st.write(f"**推理模式**: ❌ 未启用")
+                        if selected_config.get('description'):
+                            st.write(f"**描述**: {selected_config['description']}")
+                else:
+                    selected_model = None
+                    api_key = ""
+                    api_base = ""
+                    api_version = "2024-02-15-preview"
+                    reasoning_enabled = False
+                    reasoning_effort = "none"
+        else:
+            # 手动输入模式
+            # API 配置
+            st.subheader("API 设置")
+            api_key = st.text_input("API Key", type="password", value=st.session_state.api_key)
+            api_base = st.text_input("API Base URL", value=st.session_state.api_base, 
+                                     placeholder="https://your-resource.openai.azure.com/")
+            api_version = st.text_input("API Version", value=st.session_state.api_version)
+            
+            if st.button("💾 保存配置"):
+                st.session_state.api_key = api_key
+                st.session_state.api_base = api_base
+                st.session_state.api_version = api_version
+                st.success("配置已保存！")
+            
+            st.divider()
+            
+            # 模型选择
+            st.subheader("🎯 模型选择")
+            
+            model_family = st.selectbox(
+                "模型系列",
+                options=list(AVAILABLE_MODELS.keys())
+            )
+            
+            model_options = AVAILABLE_MODELS[model_family]["models"]
+            model_name = st.selectbox(
+                "具体模型",
+                options=list(model_options.keys()),
+                format_func=lambda x: f"{x} - {model_options[x]['desc']}"
+            )
+            
+            selected_model_info = model_options[model_name]
+            selected_model = selected_model_info["name"]
+            api_type = selected_model_info["api"]
+            
+            st.info(f"**当前选择**: {selected_model}")
+            
+            # API 支持提示
+            if "Responses API Only" in api_type:
+                st.warning(f"⚠️ **注意**: {selected_model} 仅支持 Responses API，不支持 Chat Completions API")
+            elif "需注册" in selected_model_info["desc"]:
+                st.warning(f"⚠️ **注意**: {selected_model} 需要申请注册才能使用")
+            
+            if api_type == "Chat Completions":
+                st.success(f"✅ 支持 Chat Completions API")
+            
+            # 显示模型详情
+            with st.expander("📋 模型详细信息"):
+                st.write(f"- **模型名称**: {selected_model}")
+                st.write(f"- **API 类型**: {api_type}")
+                st.write(f"- **描述**: {selected_model_info['desc']}")
+            
+            reasoning_enabled = False
+            reasoning_effort = "none"
         
         st.divider()
         
@@ -328,7 +435,8 @@ def main():
                     with st.spinner("正在生成回复..."):
                         response, metrics = call_chat_completion(
                             client, selected_model, messages,
-                            temperature, max_tokens, top_p, stream_output
+                            temperature, max_tokens, top_p, stream_output,
+                            reasoning_effort=reasoning_effort if use_config_file else None
                         )
                         
                         if response:
@@ -397,7 +505,8 @@ def main():
                         with st.spinner("正在调用 API..."):
                             response, metrics = call_chat_completion(
                                 client, selected_model, messages,
-                                temperature, max_tokens, top_p
+                                temperature, max_tokens, top_p,
+                                reasoning_effort=reasoning_effort if use_config_file else None
                             )
                             
                             if response:
@@ -493,7 +602,8 @@ def main():
                         messages = [{"role": "user", "content": case['prompt']}]
                         response, metrics = call_chat_completion(
                             client, selected_model, messages,
-                            temperature, max_tokens, top_p
+                            temperature, max_tokens, top_p,
+                            reasoning_effort=reasoning_effort if use_config_file else None
                         )
                         
                         if response:
