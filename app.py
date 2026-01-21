@@ -1,12 +1,16 @@
 """
 Azure OpenAI 聊天测试
-简单的聊天界面，用于测试 GPT 模型
+支持文本和图片输入，使用 Responses API
 """
 
 import streamlit as st
-from openai import AzureOpenAI
+from openai import OpenAI
 import json
 from pathlib import Path
+import base64
+import time
+from io import BytesIO
+from PIL import Image
 
 # 页面配置
 st.set_page_config(
@@ -37,6 +41,28 @@ def save_config(config):
     except:
         return False
 
+# 编码图片为 base64
+def encode_image(image_file):
+    """将上传的图片文件编码为 base64 URL"""
+    try:
+        # 读取图片
+        image = Image.open(image_file)
+        # 转换为 RGB（如果是 RGBA）
+        if image.mode == 'RGBA':
+            image = image.convert('RGB')
+        
+        # 保存到字节流
+        buffered = BytesIO()
+        image.save(buffered, format="JPEG")
+        img_bytes = buffered.getvalue()
+        
+        # 编码为 base64
+        img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+        return f"data:image/jpeg;base64,{img_base64}"
+    except Exception as e:
+        st.error(f"图片编码失败: {str(e)}")
+        return None
+
 # 初始化 session state
 if 'messages' not in st.session_state:
     st.session_state.messages = []
@@ -58,20 +84,16 @@ with st.sidebar:
         key="api_key"
     )
     endpoint = st.text_input(
-        "Endpoint", 
-        placeholder="https://your-resource.openai.azure.com/",
+        "Endpoint (Base URL)", 
+        placeholder="https://your-resource.openai.azure.com/openai/deployments/your-model",
         value=st.session_state.config.get('endpoint', ''),
-        key="endpoint"
+        key="endpoint",
+        help="完整的部署 URL"
     )
     model = st.text_input(
         "模型名称", 
-        value=st.session_state.config.get('model', 'gpt-4'),
+        value=st.session_state.config.get('model', 'gpt-4o'),
         key="model"
-    )
-    api_version = st.text_input(
-        "API Version", 
-        value=st.session_state.config.get('api_version', '2024-02-15-preview'),
-        key="api_version"
     )
     
     # 保存配置按钮
@@ -79,8 +101,7 @@ with st.sidebar:
         config = {
             'api_key': api_key,
             'endpoint': endpoint,
-            'model': model,
-            'api_version': api_version
+            'model': model
         }
         if save_config(config):
             st.session_state.config = config
@@ -92,8 +113,14 @@ with st.sidebar:
     
     # 参数设置
     st.subheader("🔧 参数")
-    temperature = st.slider("Temperature", 0.0, 2.0, 0.7, 0.1)
-    max_tokens = st.slider("Max Completion Tokens", 100, 4000, 1000, 100)
+    
+    # Reasoning effort
+    reasoning_effort = st.selectbox(
+        "Reasoning Effort",
+        options=["none", "minimal", "low", "medium", "high"],
+        index=0,
+        help="推理级别（仅支持 GPT-5 系列和 o 系列）"
+    )
     
     st.divider()
     
@@ -105,7 +132,16 @@ with st.sidebar:
 # 显示对话历史
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        st.write(message["content"])
+        # 显示文本
+        if "text" in message:
+            st.write(message["text"])
+        
+        # 显示图片
+        if "image" in message:
+            st.image(message["image"], width=300)
+
+# 图片上传
+uploaded_file = st.file_uploader("📎 上传图片（可选）", type=['png', 'jpg', 'jpeg'], key="image_upload")
 
 # 用户输入
 if prompt := st.chat_input("输入你的消息..."):
@@ -113,37 +149,127 @@ if prompt := st.chat_input("输入你的消息..."):
     if not api_key or not endpoint:
         st.error("❌ 请先在侧边栏配置 API Key 和 Endpoint")
     else:
+        # 构造用户消息
+        user_message = {"role": "user", "text": prompt}
+        
+        # 处理图片
+        image_data = None
+        if uploaded_file is not None:
+            image_data = encode_image(uploaded_file)
+            if image_data:
+                user_message["image"] = uploaded_file
+        
         # 添加用户消息
-        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.session_state.messages.append(user_message)
+        
+        # 显示用户消息
         with st.chat_message("user"):
             st.write(prompt)
+            if uploaded_file is not None and image_data:
+                st.image(uploaded_file, width=300)
         
         # 调用 API
         try:
-            client = AzureOpenAI(
+            # 初始化客户端
+            client = OpenAI(
+                base_url=endpoint,
                 api_key=api_key,
-                api_version=api_version,
-                azure_endpoint=endpoint
             )
             
+            # 构造 input（使用 Responses API 格式）
+            content = [
+                {
+                    "type": "input_text",
+                    "text": prompt
+                }
+            ]
+            
+            # 如果有图片，添加到 content
+            if image_data:
+                content.append({
+                    "type": "input_image",
+                    "image_url": image_data
+                })
+            
+            input_items = [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": content
+                }
+            ]
+            
+            # 显示助手消息
             with st.chat_message("assistant"):
                 message_placeholder = st.empty()
-                full_response = ""
+                metrics_placeholder = st.empty()
                 
-                # 流式输出 - 使用 max_completion_tokens 而不是 max_tokens
-                for response in client.chat.completions.create(
+                full_response = ""
+                first_token_time = None
+                start_time = time.time()
+                reasoning_tokens = 0
+                total_tokens = 0
+                
+                # 流式请求
+                reasoning_config = {"effort": reasoning_effort} if reasoning_effort != "none" else None
+                
+                stream = client.responses.create(
                     model=model,
-                    messages=st.session_state.messages,
-                    temperature=temperature,
-                    max_completion_tokens=max_tokens,  # 改用 max_completion_tokens
-                    stream=True
-                ):
-                    if response.choices[0].delta.content:
-                        full_response += response.choices[0].delta.content
-                        message_placeholder.write(full_response)
+                    input=input_items,
+                    stream=True,
+                    reasoning=reasoning_config
+                )
+                
+                # 处理流式事件
+                for event in stream:
+                    # 捕获文本增量
+                    if event.type == "response.output_text.delta":
+                        if first_token_time is None:
+                            first_token_time = time.time()
+                        
+                        if hasattr(event, 'delta') and event.delta:
+                            full_response += event.delta
+                            message_placeholder.write(full_response)
+                    
+                    # 捕获完成事件，提取 tokens
+                    elif event.type == "response.completed":
+                        if hasattr(event, 'response') and event.response and hasattr(event.response, 'usage'):
+                            usage = event.response.usage
+                            
+                            # 提取 Total Tokens
+                            if hasattr(usage, 'total_tokens'):
+                                total_tokens = usage.total_tokens
+                            
+                            # 提取 Reasoning Tokens
+                            if hasattr(usage, 'output_tokens_details') and usage.output_tokens_details:
+                                if hasattr(usage.output_tokens_details, 'reasoning_tokens'):
+                                    reasoning_tokens = usage.output_tokens_details.reasoning_tokens
+                
+                end_time = time.time()
+                
+                # 计算指标
+                ttft = (first_token_time - start_time) if first_token_time else 0
+                total_duration = end_time - start_time
+                
+                # 显示指标
+                if total_tokens > 0:
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("⏱️ TTFT", f"{ttft:.2f}s")
+                    with col2:
+                        st.metric("⌛ 总时长", f"{total_duration:.2f}s")
+                    with col3:
+                        st.metric("🧠 Reasoning", reasoning_tokens)
+                    with col4:
+                        st.metric("📊 Total Tokens", total_tokens)
                 
                 # 保存助手消息
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
+                st.session_state.messages.append({
+                    "role": "assistant", 
+                    "text": full_response
+                })
         
         except Exception as e:
             st.error(f"❌ 错误: {str(e)}")
+            import traceback
+            st.error(traceback.format_exc())
