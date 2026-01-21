@@ -74,38 +74,42 @@ st.title("💬 GPT 聊天测试")
 
 # 侧边栏配置
 with st.sidebar:
-    st.header("⚙️ 配置")
+    st.header("⚙️ 聊天模型配置")
+    
+    # 从配置文件加载聊天模型的配置
+    chat_config = st.session_state.config.get('chat', {})
     
     # API 配置
     api_key = st.text_input(
         "API Key", 
         type="password", 
-        value=st.session_state.config.get('api_key', ''),
-        key="api_key"
+        value=chat_config.get('api_key', ''),
+        key="chat_api_key"
     )
     endpoint = st.text_input(
         "Endpoint (Base URL)", 
         placeholder="https://your-resource.openai.azure.com/openai/deployments/your-model",
-        value=st.session_state.config.get('endpoint', ''),
-        key="endpoint",
+        value=chat_config.get('endpoint', ''),
+        key="chat_endpoint",
         help="完整的部署 URL"
     )
     model = st.text_input(
         "模型名称", 
-        value=st.session_state.config.get('model', 'gpt-4o'),
-        key="model"
+        value=chat_config.get('model', 'gpt-4o'),
+        key="chat_model"
     )
     
     # 保存配置按钮
-    if st.button("💾 保存配置", use_container_width=True):
-        config = {
+    if st.button("💾 保存聊天配置", use_container_width=True):
+        config = st.session_state.config
+        config['chat'] = {
             'api_key': api_key,
             'endpoint': endpoint,
             'model': model
         }
         if save_config(config):
             st.session_state.config = config
-            st.success("✅ 配置已保存！")
+            st.success("✅ 聊天配置已保存！")
         else:
             st.error("❌ 保存失败")
     

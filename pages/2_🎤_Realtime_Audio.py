@@ -27,6 +27,14 @@ def load_config():
             return {}
     return {}
 
+def save_config(config):
+    try:
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        return True
+    except:
+        return False
+
 config = load_config()
 
 # 标题
@@ -35,37 +43,56 @@ st.markdown("使用 WebRTC 与 GPT 进行实时语音对话")
 
 # 侧边栏配置
 with st.sidebar:
-    st.header("⚙️ 配置")
+    st.header("⚙️ Realtime 模型配置")
+    
+    # 从配置文件加载 realtime 模型的配置
+    realtime_config = config.get('realtime', {})
     
     api_key = st.text_input(
         "API Key",
         type="password",
-        value=config.get('api_key', ''),
-        help="Azure OpenAI API Key"
+        value=realtime_config.get('api_key', ''),
+        help="Azure OpenAI API Key",
+        key="realtime_api_key"
     )
     
     endpoint = st.text_input(
         "Endpoint",
-        value=config.get('endpoint', ''),
+        value=realtime_config.get('endpoint', ''),
         placeholder="https://your-resource.openai.azure.com",
-        help="不需要包含 /realtime 路径"
+        help="不需要包含 /realtime 路径",
+        key="realtime_endpoint"
     )
     
     deployment = st.text_input(
         "Deployment Name",
-        value=config.get('model', 'gpt-4o-realtime-preview'),
-        help="Realtime 模型部署名称"
+        value=realtime_config.get('deployment', 'gpt-4o-realtime-preview'),
+        help="Realtime 模型部署名称",
+        key="realtime_deployment"
     )
+    
+    # 保存配置按钮
+    if st.button("💾 保存 Realtime 配置", use_container_width=True):
+        config['realtime'] = {
+            'api_key': api_key,
+            'endpoint': endpoint,
+            'deployment': deployment
+        }
+        if save_config(config):
+            st.success("✅ Realtime 配置已保存！")
+        else:
+            st.error("❌ 保存失败")
     
     st.divider()
     
     st.subheader("📖 使用说明")
     st.markdown("""
     1. 输入配置信息
-    2. 点击 "🎤 开始对话" 按钮
-    3. 允许浏览器使用麦克风
-    4. 开始说话，GPT 会实时回复
-    5. 点击 "🛑 停止对话" 结束
+    2. 点击 "💾 保存 Realtime 配置"
+    3. 点击 "🎤 开始对话" 按钮
+    4. 允许浏览器使用麦克风
+    5. 开始说话，GPT 会实时回复
+    6. 点击 "🛑 停止对话" 结束
     """)
     
     st.divider()
@@ -74,7 +101,7 @@ with st.sidebar:
 
 # 主界面
 if not api_key or not endpoint or not deployment:
-    st.warning("⚠️ 请先在侧边栏配置 API Key、Endpoint 和 Deployment Name")
+    st.warning("⚠️ 请先在侧边栏配置 API Key、Endpoint 和 Deployment Name，并保存配置")
 else:
     # 构建 Realtime Endpoint
     realtime_endpoint = f"{endpoint}/openai/realtime"
