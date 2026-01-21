@@ -6,7 +6,8 @@
   },
   "realtime": {
     "api_key": "your-realtime-api-key-here",
-    "endpoint": "https://your-resource.openai.azure.com",
-    "deployment": "gpt-4o-realtime-preview"
+    "endpoint": "https://your-resource.cognitiveservices.azure.com/openai/realtime",
+    "deployment": "gpt-realtime",
+    "api_version": "2024-10-01-preview"
   }
 }

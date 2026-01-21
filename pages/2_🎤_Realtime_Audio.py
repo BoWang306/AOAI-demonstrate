@@ -71,12 +71,20 @@ with st.sidebar:
         key="realtime_deployment"
     )
     
+    api_version = st.text_input(
+        "API Version",
+        value=realtime_config.get('api_version', '2024-10-01-preview'),
+        help="Azure OpenAI API 版本",
+        key="realtime_api_version"
+    )
+    
     # 保存配置按钮
     if st.button("💾 保存 Realtime 配置", use_container_width=True):
         config['realtime'] = {
             'api_key': api_key,
             'endpoint': endpoint,
-            'deployment': deployment
+            'deployment': deployment,
+            'api_version': api_version
         }
         if save_config(config):
             st.success("✅ Realtime 配置已保存！")
@@ -101,7 +109,7 @@ with st.sidebar:
 
 # 主界面
 if not api_key or not endpoint or not deployment:
-    st.warning("⚠️ 请先在侧边栏配置 API Key、Endpoint 和 Deployment Name，并保存配置")
+    st.warning("⚠️ 请先在侧边栏配置 API Key、Endpoint、Deployment Name 和 API Version，并保存配置")
 else:
     st.success("✅ 配置已完成，准备开始对话")
     
@@ -110,6 +118,7 @@ else:
         st.code(f"""
 Endpoint: {endpoint}
 Deployment: {deployment}
+API Version: {api_version}
 API Key: {"*" * 40}
         """)
     
@@ -252,6 +261,7 @@ API Key: {"*" * 40}
             const API_KEY = "{api_key}";
             const ENDPOINT = "{endpoint}";
             const DEPLOYMENT = "{deployment}";
+            const API_VERSION = "{api_version}";
             
             let peerConnection = null;
             let dataChannel = null;
@@ -338,7 +348,7 @@ API Key: {"*" * 40}
                     addDebug('SDP Offer 已创建');
                     
                     // 构建完整 URL（endpoint 已经包含 /openai/realtime）
-                    const url = `${{ENDPOINT}}?api-version=2024-10-01-preview&deployment=${{DEPLOYMENT}}`;
+                    const url = `${{ENDPOINT}}?api-version=${{API_VERSION}}&deployment=${{DEPLOYMENT}}`;
                     addDebug('请求 URL: ' + url);
                     
                     // 发送 Offer 到 Azure
@@ -399,6 +409,8 @@ API Key: {"*" * 40}
             addDebug('页面已加载');
             addDebug('Endpoint: ' + ENDPOINT);
             addDebug('Deployment: ' + DEPLOYMENT);
+            addDebug('API Version: ' + API_VERSION);
+            addDebug('API Version: ' + API_VERSION);
         </script>
     </body>
     </html>
@@ -426,7 +438,7 @@ API Key: {"*" * 40}
         
         完整的请求 URL 将是：
         ```
-        {endpoint}?api-version=2024-10-01-preview&deployment={deployment}
+        {endpoint}?api-version={api_version}&deployment={deployment}
         ```
         
         ### 常见问题
