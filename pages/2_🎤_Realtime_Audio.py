@@ -57,16 +57,16 @@ with st.sidebar:
     )
     
     endpoint = st.text_input(
-        "Endpoint",
+        "完整 Endpoint URL",
         value=realtime_config.get('endpoint', ''),
-        placeholder="https://your-resource.openai.azure.com",
-        help="不需要包含 /realtime 路径",
+        placeholder="https://xxx.cognitiveservices.azure.com/openai/realtime",
+        help="完整的 realtime 端点 URL（包含 /openai/realtime）",
         key="realtime_endpoint"
     )
     
     deployment = st.text_input(
         "Deployment Name",
-        value=realtime_config.get('deployment', 'gpt-4o-realtime-preview'),
+        value=realtime_config.get('deployment', 'gpt-realtime'),
         help="Realtime 模型部署名称",
         key="realtime_deployment"
     )
@@ -103,15 +103,12 @@ with st.sidebar:
 if not api_key or not endpoint or not deployment:
     st.warning("⚠️ 请先在侧边栏配置 API Key、Endpoint 和 Deployment Name，并保存配置")
 else:
-    # 构建 Realtime Endpoint
-    realtime_endpoint = f"{endpoint}/openai/realtime"
-    
     st.success("✅ 配置已完成，准备开始对话")
     
     # 显示配置信息
     with st.expander("📋 当前配置"):
         st.code(f"""
-Endpoint: {realtime_endpoint}
+Endpoint: {endpoint}
 Deployment: {deployment}
 API Key: {"*" * 40}
         """)
@@ -154,12 +151,20 @@ API Key: {"*" * 40}
             .start-btn:hover {{
                 background-color: #45a049;
             }}
+            .start-btn:disabled {{
+                background-color: #cccccc;
+                cursor: not-allowed;
+            }}
             .stop-btn {{
                 background-color: #f44336;
                 color: white;
             }}
             .stop-btn:hover {{
                 background-color: #da190b;
+            }}
+            .stop-btn:disabled {{
+                background-color: #cccccc;
+                cursor: not-allowed;
             }}
             .status {{
                 padding: 15px;
@@ -205,6 +210,16 @@ API Key: {"*" * 40}
                 background-color: #f1f8e9;
                 text-align: left;
             }}
+            .debug {{
+                margin-top: 20px;
+                padding: 10px;
+                background-color: #f5f5f5;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                font-size: 12px;
+                max-height: 200px;
+                overflow-y: auto;
+            }}
         </style>
     </head>
     <body>
@@ -227,20 +242,33 @@ API Key: {"*" * 40}
             <div class="transcript" id="transcript">
                 <p style="color: #999;">对话内容将显示在这里...</p>
             </div>
+            
+            <div class="debug" id="debug">
+                <strong>调试信息:</strong><br>
+            </div>
         </div>
         
         <script>
             const API_KEY = "{api_key}";
-            const ENDPOINT = "{realtime_endpoint}";
+            const ENDPOINT = "{endpoint}";
             const DEPLOYMENT = "{deployment}";
             
             let peerConnection = null;
             let dataChannel = null;
             
+            function addDebug(message) {{
+                const debugEl = document.getElementById('debug');
+                const time = new Date().toLocaleTimeString();
+                debugEl.innerHTML += `[${{time}}] ${{message}}<br>`;
+                debugEl.scrollTop = debugEl.scrollHeight;
+                console.log(message);
+            }}
+            
             function updateStatus(message, type = 'idle') {{
                 const statusEl = document.getElementById('status');
                 statusEl.textContent = message;
                 statusEl.className = 'status ' + type;
+                addDebug('Status: ' + message);
             }}
             
             function addMessage(content, role) {{
@@ -257,27 +285,36 @@ API Key: {"*" * 40}
                     updateStatus('正在连接...', 'connecting');
                     document.getElementById('startBtn').disabled = true;
                     
+                    addDebug('开始创建 RTCPeerConnection...');
+                    
                     // 创建 RTCPeerConnection
                     peerConnection = new RTCPeerConnection();
                     
+                    addDebug('请求麦克风权限...');
+                    
                     // 添加音频轨道
                     const stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
+                    addDebug('麦克风权限已获取');
+                    
                     stream.getTracks().forEach(track => {{
                         peerConnection.addTrack(track, stream);
+                        addDebug('添加音频轨道: ' + track.label);
                     }});
                     
                     // 创建 Data Channel
+                    addDebug('创建 Data Channel...');
                     dataChannel = peerConnection.createDataChannel('oai-events');
                     
                     dataChannel.onopen = () => {{
                         updateStatus('✅ 已连接，可以开始说话了！', 'connected');
                         document.getElementById('stopBtn').disabled = false;
+                        addDebug('Data Channel 已打开');
                     }};
                     
                     dataChannel.onmessage = (event) => {{
                         try {{
                             const message = JSON.parse(event.data);
-                            console.log('Received:', message);
+                            addDebug('收到消息: ' + message.type);
                             
                             if (message.type === 'response.audio_transcript.done') {{
                                 addMessage(message.transcript, 'assistant');
@@ -285,21 +322,27 @@ API Key: {"*" * 40}
                                 addMessage(message.transcript, 'user');
                             }}
                         }} catch (error) {{
-                            console.error('Error parsing message:', error);
+                            addDebug('解析消息错误: ' + error.message);
                         }}
                     }};
                     
                     dataChannel.onerror = (error) => {{
-                        updateStatus('❌ 连接错误: ' + error, 'error');
+                        updateStatus('❌ Data Channel 错误', 'error');
+                        addDebug('Data Channel 错误: ' + error);
                     }};
                     
                     // 创建 Offer
+                    addDebug('创建 SDP Offer...');
                     const offer = await peerConnection.createOffer();
                     await peerConnection.setLocalDescription(offer);
+                    addDebug('SDP Offer 已创建');
+                    
+                    // 构建完整 URL（endpoint 已经包含 /openai/realtime）
+                    const url = `${{ENDPOINT}}?api-version=2024-10-01-preview&deployment=${{DEPLOYMENT}}`;
+                    addDebug('请求 URL: ' + url);
                     
                     // 发送 Offer 到 Azure
-                    const url = `${{ENDPOINT}}?deployment=${{DEPLOYMENT}}&api-version=2024-10-01-preview`;
-                    
+                    addDebug('发送 SDP Offer 到 Azure...');
                     const response = await fetch(url, {{
                         method: 'POST',
                         headers: {{
@@ -309,24 +352,35 @@ API Key: {"*" * 40}
                         body: offer.sdp
                     }});
                     
+                    addDebug('响应状态: ' + response.status + ' ' + response.statusText);
+                    
                     if (!response.ok) {{
-                        throw new Error('Failed to connect: ' + response.statusText);
+                        const errorText = await response.text();
+                        addDebug('错误响应: ' + errorText);
+                        throw new Error('Failed to connect: ' + response.statusText + ' - ' + errorText);
                     }}
                     
                     const answerSdp = await response.text();
+                    addDebug('收到 SDP Answer，长度: ' + answerSdp.length);
+                    
                     await peerConnection.setRemoteDescription({{
                         type: 'answer',
                         sdp: answerSdp
                     }});
                     
+                    addDebug('连接建立成功！');
+                    
                 }} catch (error) {{
                     console.error('Error:', error);
                     updateStatus('❌ 连接失败: ' + error.message, 'error');
+                    addDebug('连接失败: ' + error.message);
                     document.getElementById('startBtn').disabled = false;
                 }}
             }}
             
             function stopSession() {{
+                addDebug('断开连接...');
+                
                 if (peerConnection) {{
                     peerConnection.close();
                     peerConnection = null;
@@ -340,53 +394,52 @@ API Key: {"*" * 40}
                 document.getElementById('startBtn').disabled = false;
                 document.getElementById('stopBtn').disabled = true;
             }}
+            
+            // 初始化调试信息
+            addDebug('页面已加载');
+            addDebug('Endpoint: ' + ENDPOINT);
+            addDebug('Deployment: ' + DEPLOYMENT);
         </script>
     </body>
     </html>
     """
     
     # 显示 WebRTC 界面
-    html(webrtc_html, height=700, scrolling=True)
+    html(webrtc_html, height=900, scrolling=True)
     
     # 技术说明
     st.markdown("---")
     
-    with st.expander("🔧 技术说明"):
-        st.markdown("""
-        ### WebRTC 流程
+    with st.expander("🔧 配置说明"):
+        st.markdown(f"""
+        ### Endpoint 格式
         
-        1. **创建 RTCPeerConnection**
-           - 建立 WebRTC 连接
-        
-        2. **获取麦克风权限**
-           - `navigator.mediaDevices.getUserMedia()`
-        
-        3. **创建 Data Channel**
-           - 用于接收转录文本和事件
-        
-        4. **发送 SDP Offer**
-           - POST 到 `/openai/realtime` 端点
-        
-        5. **接收 SDP Answer**
-           - 设置远程描述完成连接
-        
-        6. **实时通信**
-           - 音频流：通过 WebRTC 传输
-           - 文本转录：通过 Data Channel 接收
-        
-        ### API 端点格式
+        你的配置：
         ```
-        POST {endpoint}/openai/realtime?deployment={deployment}&api-version=2024-10-01-preview
-        Headers:
-          Content-Type: application/sdp
-          api-key: {your-api-key}
-        Body: SDP Offer
+        {endpoint}
         ```
         
-        ### 支持的事件
-        - `response.audio_transcript.done` - GPT 回复的转录
-        - `conversation.item.input_audio_transcription.completed` - 用户输入的转录
+        正确的格式应该是：
+        ```
+        https://your-resource.cognitiveservices.azure.com/openai/realtime
+        ```
         
-        ### 参考文档
-        [Azure OpenAI Realtime Audio](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/realtime-audio-webrtc)
+        完整的请求 URL 将是：
+        ```
+        {endpoint}?api-version=2024-10-01-preview&deployment={deployment}
+        ```
+        
+        ### 常见问题
+        
+        1. **Endpoint 不需要包含查询参数**
+           - ❌ 错误：包含 `?api-version=...`
+           - ✅ 正确：只到 `/openai/realtime`
+        
+        2. **Deployment 是部署名称**
+           - 在 Azure Portal 中创建的部署名称
+           - 通常是 `gpt-realtime` 或 `gpt-4o-realtime-preview`
+        
+        3. **API Key 权限**
+           - 需要有访问 Realtime API 的权限
+           - 在 Azure Portal 的 Keys and Endpoint 中获取
         """)
